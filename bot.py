@@ -3,6 +3,7 @@ import sqlite3
 import random
 import requests
 import re
+import time
 from datetime import datetime, timezone, timedelta
 
 BOT_TOKEN = os.environ["BOT_TOKEN"]
@@ -28,15 +29,6 @@ MONTHS = {
     12: ("اسفند", "🐟"),
 }
 
-
-def send(text):
-    requests.post(
-        f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-        json={"chat_id": CHANNEL_ID, "text": text, "parse_mode": "HTML"},
-        timeout=30
-    )
-
-
 def init_db():
     conn = sqlite3.connect(DB)
     cur = conn.cursor()
@@ -58,13 +50,81 @@ def init_db():
         )
     """)
 
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS queue (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            message TEXT,
+            status TEXT DEFAULT 'pending',
+            attempts INTEGER DEFAULT 0,
+            last_error TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
     conn.commit()
     conn.close()
 
 
-# =========================
-# PRODUCTION SAFE LOADER
-# =========================
+def send_to_telegram(text):
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+
+    for attempt in range(5):
+        try:
+            r = requests.post(
+                url,
+                json={
+                    "chat_id": CHANNEL_ID,
+                    "text": text,
+                    "parse_mode": "HTML"
+                },
+                timeout=20
+            )
+
+            if r.status_code == 200:
+                return True, None
+
+        except Exception as e:
+            err = str(e)
+
+        time.sleep(2 ** attempt)
+
+    return False, err
+
+
+def enqueue(message):
+    conn = sqlite3.connect(DB)
+    conn.execute(
+        "INSERT INTO queue (message) VALUES (?)",
+        (message,)
+    )
+    conn.commit()
+    conn.close()
+
+
+def process_queue():
+    conn = sqlite3.connect(DB)
+    cur = conn.cursor()
+
+    cur.execute("SELECT id, message, attempts FROM queue WHERE status='pending'")
+    rows = cur.fetchall()
+
+    for qid, msg, attempts in rows:
+
+        success, err = send_to_telegram(msg)
+
+        if success:
+            cur.execute("UPDATE queue SET status='sent' WHERE id=?", (qid,))
+        else:
+            cur.execute("""
+                UPDATE queue 
+                SET attempts=?, last_error=? 
+                WHERE id=?
+            """, (attempts + 1, err, qid))
+
+    conn.commit()
+    conn.close()
+
+
 def load_faals():
     conn = sqlite3.connect(DB)
     cur = conn.cursor()
@@ -76,7 +136,6 @@ def load_faals():
 
     text = requests.get(DATA_URL, timeout=60).text
 
-    # استخراج tuple ها بدون exec
     pattern = r"\(\s*(\d+)\s*,\s*'([\s\S]*?)'\s*,\s*'([\s\S]*?)'\s*\)"
     rows = re.findall(pattern, text)
 
@@ -116,15 +175,12 @@ def pick_fal(exclude):
         cur.execute("SELECT * FROM faals")
 
     rows = cur.fetchall()
-    conn.close()
 
     if not rows:
-        conn = sqlite3.connect(DB)
-        cur = conn.cursor()
         cur.execute("SELECT * FROM faals")
         rows = cur.fetchall()
-        conn.close()
 
+    conn.close()
     return random.choice(rows)
 
 
@@ -173,3 +229,30 @@ def build(month, emoji, bit, interp):
 <blockquote>@aristapanel</blockquote>
 ➖➖➖➖➖➖➖➖
 #فال_حافظ #سرگرمی #آریستا"""
+
+
+def get_today():
+    now = datetime.now(timezone.utc) + IRAN_OFFSET
+    return now.month, str(now.day).zfill(2)
+
+
+def run():
+    init_db()
+    load_faals()
+
+    month, day = get_today()
+
+    used = get_used(month, day)
+    fid, poem, interp = pick_fal(used)
+
+    bit = extract_bit(poem)
+    text = build(month, MONTHS[month][1], bit, interp)
+
+    enqueue(text)
+    process_queue()
+
+    save(month, fid, day)
+
+
+if __name__ == "__main__":
+    run()
