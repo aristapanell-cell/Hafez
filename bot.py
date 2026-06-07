@@ -2,7 +2,6 @@ import os
 import sqlite3
 import random
 import requests
-import importlib.util
 from datetime import datetime, timezone, timedelta
 
 BOT_TOKEN = os.environ["BOT_TOKEN"]
@@ -60,13 +59,16 @@ def load_faals():
         with open(DATA_FILE, "w", encoding="utf-8") as f:
             f.write(r.text)
 
-    spec = importlib.util.spec_from_file_location("create_db", DATA_FILE)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    parsed = {}
+    with open(DATA_FILE, "r", encoding="utf-8") as f:
+        exec(f.read(), parsed)
 
     conn = sqlite3.connect(DB)
     cur = conn.cursor()
-    cur.executemany("INSERT OR REPLACE INTO faals VALUES (?,?,?)", module.data)
+    cur.executemany(
+        "INSERT OR REPLACE INTO faals VALUES (?,?,?)",
+        parsed["data"]
+    )
     conn.commit()
     conn.close()
 
@@ -85,11 +87,10 @@ def pick_fal(exclude):
     if exclude:
         q = f"SELECT * FROM faals WHERE id NOT IN ({','.join(['?']*len(exclude))})"
         cur.execute(q, exclude)
-        rows = cur.fetchall()
     else:
         cur.execute("SELECT * FROM faals")
-        rows = cur.fetchall()
 
+    rows = cur.fetchall()
     conn.close()
 
     if not rows:
