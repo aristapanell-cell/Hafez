@@ -13,6 +13,7 @@ DB = "faals.db"
 DATA_URL = "https://raw.githubusercontent.com/Matinsojoudi/faal-hafez/refs/heads/main/create_db.py"
 
 IRAN_OFFSET = timedelta(hours=3, minutes=30)
+MAX_RETRY = 5
 
 MONTHS = {
     1: ("فروردین", "🐏"),
@@ -28,6 +29,7 @@ MONTHS = {
     11: ("بهمن", "🏺"),
     12: ("اسفند", "🐟"),
 }
+
 
 def init_db():
     conn = sqlite3.connect(DB)
@@ -57,9 +59,19 @@ def init_db():
             status TEXT DEFAULT 'pending',
             attempts INTEGER DEFAULT 0,
             last_error TEXT,
+            locked INTEGER DEFAULT 0,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
         )
     """)
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS state (
+            id INTEGER PRIMARY KEY,
+            last_run TEXT
+        )
+    """)
+
+    cur.execute("INSERT OR IGNORE INTO state (id, last_run) VALUES (1, '')")
 
     conn.commit()
     conn.close()
@@ -67,8 +79,9 @@ def init_db():
 
 def send_to_telegram(text):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    err = None
 
-    for attempt in range(5):
+    for i in range(MAX_RETRY):
         try:
             r = requests.post(
                 url,
@@ -86,17 +99,14 @@ def send_to_telegram(text):
         except Exception as e:
             err = str(e)
 
-        time.sleep(2 ** attempt)
+        time.sleep(2 ** i)
 
     return False, err
 
 
 def enqueue(message):
     conn = sqlite3.connect(DB)
-    conn.execute(
-        "INSERT INTO queue (message) VALUES (?)",
-        (message,)
-    )
+    conn.execute("INSERT INTO queue (message) VALUES (?)", (message,))
     conn.commit()
     conn.close()
 
@@ -105,23 +115,44 @@ def process_queue():
     conn = sqlite3.connect(DB)
     cur = conn.cursor()
 
-    cur.execute("SELECT id, message, attempts FROM queue WHERE status='pending'")
+    cur.execute("""
+        SELECT id, message, attempts
+        FROM queue
+        WHERE status='pending' AND locked=0
+        ORDER BY id ASC
+    """)
+
     rows = cur.fetchall()
 
     for qid, msg, attempts in rows:
 
+        cur.execute("UPDATE queue SET locked=1 WHERE id=?", (qid,))
+        conn.commit()
+
         success, err = send_to_telegram(msg)
 
         if success:
-            cur.execute("UPDATE queue SET status='sent' WHERE id=?", (qid,))
-        else:
             cur.execute("""
-                UPDATE queue 
-                SET attempts=?, last_error=? 
+                UPDATE queue
+                SET status='sent',
+                    locked=0
                 WHERE id=?
-            """, (attempts + 1, err, qid))
+            """, (qid,))
+        else:
+            status = "pending" if attempts + 1 < MAX_RETRY else "failed"
 
-    conn.commit()
+            cur.execute("""
+                UPDATE queue
+                SET attempts=?,
+                    last_error=?,
+                    status=?,
+                    locked=0
+                WHERE id=?
+            """, (attempts + 1, err, status, qid))
+
+        conn.commit()
+        time.sleep(1)
+
     conn.close()
 
 
@@ -146,10 +177,7 @@ def load_faals():
         interp = r[2].replace("\\r\\n", "\n").replace("\\n", "\n")
         clean_rows.append((fid, poem, interp))
 
-    cur.executemany(
-        "INSERT OR REPLACE INTO faals VALUES (?,?,?)",
-        clean_rows
-    )
+    cur.executemany("INSERT OR REPLACE INTO faals VALUES (?,?,?)", clean_rows)
 
     conn.commit()
     conn.close()
@@ -231,27 +259,54 @@ def build(month, emoji, bit, interp):
 #فال_حافظ #سرگرمی #آریستا"""
 
 
-def get_today():
+def acquire_lock():
+    conn = sqlite3.connect(DB)
+    cur = conn.cursor()
+
+    today = str(datetime.now().date())
+
+    cur.execute("SELECT last_run FROM state WHERE id=1")
+    last = cur.fetchone()[0]
+
+    if last == today:
+        conn.close()
+        return False
+
+    cur.execute("UPDATE state SET last_run=? WHERE id=1", (today,))
+    conn.commit()
+    conn.close()
+    return True
+
+
+def get_today_key():
     now = datetime.now(timezone.utc) + IRAN_OFFSET
-    return now.month, str(now.day).zfill(2)
+    return str(now.date())
+
+
+def enqueue_daily_batch():
+    day = get_today_key()
+
+    for month in range(1, 13):
+
+        used = get_used(month, day)
+        fid, poem, interp = pick_fal(used)
+
+        bit = extract_bit(poem)
+        text = build(month, MONTHS[month][1], bit, interp)
+
+        enqueue(text)
+        save(month, fid, day)
 
 
 def run():
     init_db()
     load_faals()
 
-    month, day = get_today()
+    if not acquire_lock():
+        return
 
-    used = get_used(month, day)
-    fid, poem, interp = pick_fal(used)
-
-    bit = extract_bit(poem)
-    text = build(month, MONTHS[month][1], bit, interp)
-
-    enqueue(text)
+    enqueue_daily_batch()
     process_queue()
-
-    save(month, fid, day)
 
 
 if __name__ == "__main__":
