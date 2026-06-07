@@ -14,11 +14,13 @@ jobs:
 
       - uses: actions/cache@v4
         with:
-          path: faals.db
-          key: faals-db-cache-v1
+          path: |
+            faals.db
+            data
+          key: faals-cache-v1
           restore-keys: |
-            faals-db-cache-v1
-            faals-db-cache-
+            faals-cache-v1
+            faals-cache-
 
       - uses: actions/setup-python@v5
         with:
@@ -26,11 +28,8 @@ jobs:
 
       - run: pip install requests
 
-      - name: Validate DB
-        run: |
-          if [ ! -f faals.db ] || [ ! -s faals.db ] || [ $(stat -c%s faals.db) -lt 1000 ]; then
-            rm -f faals.db
-          fi
+      - name: Ensure data folder
+        run: mkdir -p data
 
       - run: python bot.py
         env:
