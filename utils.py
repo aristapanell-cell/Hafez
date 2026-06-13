@@ -24,6 +24,18 @@ def detect_arch(filename):
         return "universal"
     return "unknown"
 
+def detect_system(filename):
+    name = filename.lower()
+    if ".apk" in name:
+        return "Android"
+    if any(x in name for x in [".exe", ".msi"]):
+        return "Windows"
+    if any(x in name for x in [".dmg", ".pkg"]):
+        return "macOS"
+    if any(x in name for x in [".deb", ".rpm"]):
+        return "Linux"
+    return "Unknown"
+
 def is_valid_asset(name):
     low = name.lower()
     if "source code" in low:
