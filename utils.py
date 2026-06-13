@@ -1,5 +1,20 @@
 from config import REPO_NAMES
 
+ARCH_MAP = {
+    "arm64-v8a": ["arm64-v8a", "aarch64", "arm64"],
+    "armeabi-v7a": ["armeabi-v7a", "armv7", "armv7a"],
+    "x86_64": ["x86_64", "amd64", "x64", "64bit"],
+    "x86": ["x86", "win32", "i386", "i686"],
+    "universal": ["universal", "all", "multi", "fat"]
+}
+
+SYSTEM_MAP = {
+    "Android": ["android", "apk", "arm", "aarch64", "arm64", "armeabi"],
+    "Windows": ["windows", ".exe", ".msi", "win"],
+    "Linux": ["linux", "appimage", "deb", "rpm"],
+    "macOS": ["mac", "darwin", "dmg", "osx", "macos"]
+}
+
 def get_repo_key(url):
     return url.split("/repos/")[1].split("/releases")[0]
 
@@ -12,28 +27,16 @@ def get_repo_name(url):
 
 def detect_arch(filename):
     name = filename.lower()
-    if any(x in name for x in ["arm64-v8a", "aarch64", "arm64"]):
-        return "arm64-v8a"
-    if any(x in name for x in ["armeabi-v7a", "armv7"]):
-        return "armeabi-v7a"
-    if any(x in name for x in ["x86_64", "amd64", "x64"]):
-        return "x86_64"
-    if any(x in name for x in ["x86", "win32"]):
-        return "x86"
-    if "universal" in name or "all" in name:
-        return "universal"
+    for arch, keys in ARCH_MAP.items():
+        if any(x in name for x in keys):
+            return arch
     return "unknown"
 
 def detect_system(filename):
     name = filename.lower()
-    if ".apk" in name:
-        return "Android"
-    if any(x in name for x in [".exe", ".msi"]):
-        return "Windows"
-    if any(x in name for x in [".dmg", ".pkg"]):
-        return "macOS"
-    if any(x in name for x in [".deb", ".rpm"]):
-        return "Linux"
+    for system, keys in SYSTEM_MAP.items():
+        if any(x in name for x in keys):
+            return system
     return "Unknown"
 
 def is_valid_asset(name):
