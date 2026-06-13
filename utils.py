@@ -52,6 +52,10 @@ def detect_arch(filename, repo_url=None, release_name=None, repo_name=None):
         return "universal"
     
     if repo_name == "V2rayN":
+        if "win" in name_lower or "windows" in name_lower:
+            return "x86_64"
+        if "linux" in name_lower:
+            return "x86_64"
         return "x86_64"
     
     if repo_name == "Happ":
@@ -80,6 +84,9 @@ def detect_arch(filename, repo_url=None, release_name=None, repo_name=None):
 def detect_system(filename, repo_url=None, repo_name=None):
     name_lower = filename.lower()
     
+    if "desktop" in name_lower and ("win" in name_lower or "windows" in name_lower):
+        return "Windows Desktop"
+    
     if name_lower.endswith('.apk'):
         return "Android"
     
@@ -97,6 +104,14 @@ def detect_system(filename, repo_url=None, repo_name=None):
             return "Linux"
         if "mac" in name_lower or "osx" in name_lower:
             return "macOS"
+        if "win" in name_lower or "windows" in name_lower:
+            if "desktop" in name_lower:
+                return "Windows Desktop"
+            return "Windows"
+        if ".deb" in name_lower:
+            return "Linux"
+        if ".dmg" in name_lower:
+            return "macOS"
         return "Windows"
     
     if repo_name == "Clash Verge":
@@ -106,7 +121,7 @@ def detect_system(filename, repo_url=None, repo_name=None):
             return "Linux"
         if "mac" in name_lower or "darwin" in name_lower:
             return "macOS"
-        if "win" in name_lower:
+        if "win" in name_lower or "windows" in name_lower:
             return "Windows"
         return "Windows"
     
@@ -117,7 +132,7 @@ def detect_system(filename, repo_url=None, repo_name=None):
             return "Linux"
         if "mac" in name_lower or "darwin" in name_lower:
             return "macOS"
-        if "win" in name_lower:
+        if "win" in name_lower or "windows" in name_lower:
             return "Windows"
         return "Windows"
     
@@ -131,12 +146,16 @@ def detect_system(filename, repo_url=None, repo_name=None):
     for system, keywords in SYSTEM_MAP.items():
         for keyword in keywords:
             if keyword in name_lower:
+                if system == "Windows" and "desktop" in name_lower:
+                    return "Windows Desktop"
                 return system
     
     if any(x in name_lower for x in ["apk", "arm64", "armeabi"]):
         return "Android"
     
     if any(x in name_lower for x in ["exe", "msi", "win"]):
+        if "desktop" in name_lower:
+            return "Windows Desktop"
         return "Windows"
     
     if any(x in name_lower for x in ["dmg", "pkg", "mac"]):
@@ -159,6 +178,9 @@ def format_size(size_bytes):
     return f"{size_bytes // (1024 * 1024)}MB"
 
 def build_caption(repo_name, tag, system, arch, size_mb, is_large=False):
+    if arch == "arm64-v8a" and system in ["Windows", "Windows Desktop"]:
+        arch = "arm64"
+    
     caption = f"""
 ✨ <b>بروزرسانی جدید</b> ✨
 
