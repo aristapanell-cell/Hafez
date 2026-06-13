@@ -55,8 +55,8 @@ async def process(session, url, cache, tg):
                 if not is_valid_asset(filename):
                     continue
 
-                arch = detect_arch(filename)
-                system = detect_system(filename)
+                arch = detect_arch(filename, url, tag)
+                system = detect_system(filename, url, repo_name)
 
                 size = format_size(a["size"])
                 url_dl = a["browser_download_url"]
