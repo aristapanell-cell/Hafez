@@ -2,7 +2,6 @@
 
 import re
 from config import REPO_NAMES
-from logger import log_info
 
 ARCH_MAP = {
     "arm64-v8a": ["arm64-v8a", "aarch64", "arm64", "arm64-v8a"],
@@ -53,14 +52,28 @@ def detect_arch(filename, repo_url=None, release_name=None, repo_name=None):
         return "universal"
     
     if repo_name == "V2rayN":
-        if "win" in name_lower or "windows" in name_lower:
-            return "x86_64"
-        if "linux" in name_lower:
-            return "x86_64"
         return "x86_64"
+    
+    if repo_name == "Happ":
+        return "universal"
     
     if "win" in name_lower or "windows" in name_lower:
         return "x86_64"
+    
+    if name_lower.endswith('.apk'):
+        if "x86" in name_lower:
+            return "x86"
+        return "universal"
+    
+    if name_lower.endswith('.deb') or name_lower.endswith('.rpm'):
+        if "arm64" in name_lower:
+            return "arm64-v8a"
+        return "x86_64"
+    
+    if name_lower.endswith('.dmg') or name_lower.endswith('.pkg'):
+        if "arm64" in name_lower:
+            return "arm64-v8a"
+        return "universal"
     
     return "unknown"
 
@@ -73,7 +86,7 @@ def detect_system(filename, repo_url=None, repo_name=None):
     if name_lower.endswith('.deb') or name_lower.endswith('.rpm') or name_lower.endswith('.AppImage'):
         return "Linux"
     
-    if name_lower.endswith('.dmg'):
+    if name_lower.endswith('.dmg') or name_lower.endswith('.pkg'):
         return "macOS"
     
     if name_lower.endswith('.exe') or name_lower.endswith('.msi'):
@@ -84,12 +97,6 @@ def detect_system(filename, repo_url=None, repo_name=None):
             return "Linux"
         if "mac" in name_lower or "osx" in name_lower:
             return "macOS"
-        if "win" in name_lower or "windows" in name_lower:
-            return "Windows"
-        if ".deb" in name_lower:
-            return "Linux"
-        if ".dmg" in name_lower:
-            return "macOS"
         return "Windows"
     
     if repo_name == "Clash Verge":
@@ -99,7 +106,7 @@ def detect_system(filename, repo_url=None, repo_name=None):
             return "Linux"
         if "mac" in name_lower or "darwin" in name_lower:
             return "macOS"
-        if "win" in name_lower or "windows" in name_lower:
+        if "win" in name_lower:
             return "Windows"
         return "Windows"
     
@@ -110,9 +117,16 @@ def detect_system(filename, repo_url=None, repo_name=None):
             return "Linux"
         if "mac" in name_lower or "darwin" in name_lower:
             return "macOS"
-        if "win" in name_lower or "windows" in name_lower:
+        if "win" in name_lower:
             return "Windows"
         return "Windows"
+    
+    if repo_name == "ClashMeta" or repo_name == "FlClash":
+        if "arm64" in name_lower:
+            return "Android"
+        if "x86" in name_lower:
+            return "Android"
+        return "Android"
     
     for system, keywords in SYSTEM_MAP.items():
         for keyword in keywords:
