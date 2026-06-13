@@ -20,13 +20,30 @@ from logger import log_info, log_error, log_success
 
 semaphore = asyncio.Semaphore(MAX_CONCURRENT)
 
-async def download(session, url):
-    try:
-        async with session.get(url) as r:
-            if r.status == 200:
-                return await r.read()
-    except:
-        return None
+async def download(session, url, retries=3):
+    for attempt in range(retries):
+        try:
+            timeout = aiohttp.ClientTimeout(total=120, connect=30)
+            async with session.get(url, timeout=timeout) as r:
+                if r.status == 200:
+                    data = await r.read()
+                    log_info(f"Downloaded {len(data)} bytes from {url.split('/')[-1]}")
+                    return data
+                else:
+                    log_error(f"Download failed: HTTP {r.status} (attempt {attempt+1}/{retries})")
+                    if attempt < retries - 1:
+                        await asyncio.sleep(3)
+                        continue
+                    return None
+        except asyncio.TimeoutError:
+            log_error(f"Timeout downloading (attempt {attempt+1}/{retries})")
+            if attempt < retries - 1:
+                await asyncio.sleep(3)
+        except Exception as e:
+            log_error(f"Download error: {e} (attempt {attempt+1}/{retries})")
+            if attempt < retries - 1:
+                await asyncio.sleep(3)
+    return None
 
 async def process(session, url, cache, tg):
     async with semaphore:
@@ -55,7 +72,7 @@ async def process(session, url, cache, tg):
 
             sent = False
 
-            for a in assets:
+            for idx, a in enumerate(assets):
                 filename = a["name"]
 
                 if not is_valid_asset(filename):
@@ -70,23 +87,29 @@ async def process(session, url, cache, tg):
 
                 caption = build_caption(repo_name, tag, system, arch, size, is_large=is_large)
 
-                log_info(f"FILE: {filename} | arch={arch} | system={system} | size={a['size']} | large={is_large}")
+                log_info(f"FILE {idx+1}: {filename} | arch={arch} | system={system} | size={a['size']} | large={is_large}")
 
                 data = await download(session, url_dl)
 
                 if data and len(data) < SIZE_LIMIT:
                     ok = await send_file(tg, BOT_TOKEN, CHAT_ID, data, filename, caption, url_dl)
                     if not ok:
+                        log_info(f"File send failed, sending as link")
                         await send_link(tg, BOT_TOKEN, CHAT_ID, caption, url_dl)
                 else:
+                    if data:
+                        log_info(f"File too large ({len(data)} bytes), sending as link")
+                    else:
+                        log_info(f"Download failed, sending as link")
                     await send_link(tg, BOT_TOKEN, CHAT_ID, caption, url_dl)
 
                 sent = True
-                await asyncio.sleep(1)
+                await asyncio.sleep(2)
 
             if sent:
                 await update_cache(repo_key, release_id, tag)
                 log_success(repo_name, tag)
+                await asyncio.sleep(3)
 
         except Exception as e:
             log_error(str(e), exc=True)
@@ -96,7 +119,8 @@ async def main():
 
     cache = load_cache()
 
-    async with aiohttp.ClientSession() as session, aiohttp.ClientSession() as tg:
+    connector = aiohttp.TCPConnector(limit=10, ttl_dns_cache=300)
+    async with aiohttp.ClientSession(connector=connector) as session, aiohttp.ClientSession(connector=connector) as tg:
         await asyncio.gather(*[
             process(session, url, cache, tg)
             for url in REPOS
