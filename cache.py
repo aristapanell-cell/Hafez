@@ -15,8 +15,8 @@ def save_cache(data):
     with open(CACHE_FILE, "w") as f:
         json.dump(data, f, indent=2)
 
-async def update_cache(repo_name, release_id, tag):
+async def update_cache(repo_key, release_id, tag):
     async with cache_lock:
         cache = load_cache()
-        cache[repo_name] = {"release_id": release_id, "tag": tag}
+        cache[repo_key] = {"release_id": release_id, "tag": tag}
         save_cache(cache)
