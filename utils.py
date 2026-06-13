@@ -9,9 +9,9 @@ ARCH_MAP = {
 }
 
 SYSTEM_MAP = {
-    "Android": ["android", "apk", "arm", "aarch64", "arm64", "armeabi"],
+    "Android": ["android", "apk", "arm", "aarch64", "arm64", "armeabi", "v7a"],
     "Windows": ["windows", ".exe", ".msi", "win"],
-    "Linux": ["linux", "appimage", "deb", "rpm"],
+    "Linux": ["linux", "appimage", "deb", "rpm", "ubuntu", "debian"],
     "macOS": ["mac", "darwin", "dmg", "osx", "macos"]
 }
 
@@ -32,11 +32,22 @@ def detect_arch(filename):
             return arch
     return "unknown"
 
-def detect_system(filename):
-    name = filename.lower()
-    for system, keys in SYSTEM_MAP.items():
-        if any(x in name for x in keys):
-            return system
+def detect_system(filename, repo_url=None, repo_name=None):
+    text = filename.lower()
+    if repo_url:
+        text += " " + repo_url.lower()
+    if repo_name:
+        text += " " + repo_name.lower()
+
+    if any(x in text for x in SYSTEM_MAP["Android"]):
+        return "Android"
+    if any(x in text for x in SYSTEM_MAP["Windows"]):
+        return "Windows"
+    if any(x in text for x in SYSTEM_MAP["Linux"]):
+        return "Linux"
+    if any(x in text for x in SYSTEM_MAP["macOS"]):
+        return "macOS"
+
     return "Unknown"
 
 def is_valid_asset(name):
