@@ -19,22 +19,6 @@ SYSTEM_MAP = {
     "macOS": ["mac", "darwin", ".dmg", "osx", "macos", "macosx", ".pkg"]
 }
 
-ARCH_SYSTEM_MAP = {
-    "arm64": ("Android", "arm64-v8a"),
-    "aarch64": ("Android", "arm64-v8a"),
-    "arm64-v8a": ("Android", "arm64-v8a"),
-    "armeabi-v7a": ("Android", "armeabi-v7a"),
-    "armv7": ("Android", "armeabi-v7a"),
-    "armeabi": ("Android", "armeabi-v7a"),
-    "x86_64": ("Windows", "x86_64"),
-    "amd64": ("Windows", "x86_64"),
-    "x64": ("Windows", "x86_64"),
-    "x86": ("Windows", "x86"),
-    "win32": ("Windows", "x86"),
-    "i386": ("Linux", "x86"),
-    "i686": ("Linux", "x86")
-}
-
 def get_repo_key(url):
     return url.split("/repos/")[1].split("/releases")[0]
 
@@ -45,164 +29,109 @@ def get_repo_name(url):
             return value
     return full_name.split("/")[-1]
 
-def detect_arch(filename, repo_url=None, release_name=None):
+def detect_arch(filename, repo_url=None, release_name=None, repo_name=None):
     name_lower = filename.lower()
-    log_info(f"  [detect_arch] input: {filename}")
     
     if "arm64" in name_lower or "aarch64" in name_lower or "arm64-v8a" in name_lower:
-        log_info(f"  [detect_arch] matched arm64 pattern -> arm64-v8a")
         return "arm64-v8a"
     
     if "armeabi-v7a" in name_lower or "armv7" in name_lower:
-        log_info(f"  [detect_arch] matched armeabi-v7a pattern -> armeabi-v7a")
         return "armeabi-v7a"
     
     if "armeabi" in name_lower and "64" not in name_lower:
-        log_info(f"  [detect_arch] matched armeabi pattern -> armeabi-v7a")
         return "armeabi-v7a"
     
     if "x86_64" in name_lower or "amd64" in name_lower or "x64" in name_lower:
         if "arm" not in name_lower:
-            log_info(f"  [detect_arch] matched x86_64 pattern -> x86_64")
             return "x86_64"
     
     if "x86" in name_lower or "i386" in name_lower or "i686" in name_lower:
         if "64" not in name_lower and "arm" not in name_lower:
-            log_info(f"  [detect_arch] matched x86 pattern -> x86")
             return "x86"
     
-    for arch, keys in ARCH_MAP.items():
-        for key in keys:
-            if key in name_lower:
-                if arch == "arm64-v8a" and ("arm64" in name_lower or "aarch64" in name_lower):
-                    log_info(f"  [detect_arch] ARCH_MAP matched {arch} -> {arch}")
-                    return arch
-                elif arch == "armeabi-v7a" and ("armeabi" in name_lower or "armv7" in name_lower):
-                    log_info(f"  [detect_arch] ARCH_MAP matched {arch} -> {arch}")
-                    return arch
-                elif key in name_lower:
-                    log_info(f"  [detect_arch] ARCH_MAP matched {arch} -> {arch}")
-                    return arch
+    if "universal" in name_lower:
+        return "universal"
     
-    if release_name:
-        release_lower = release_name.lower()
-        for arch, keys in ARCH_MAP.items():
-            for key in keys:
-                if key in release_lower:
-                    log_info(f"  [detect_arch] release_name matched {arch} -> {arch}")
-                    return arch
-    
-    if repo_url:
-        repo_lower = repo_url.lower()
-        if "arm64" in repo_lower or "aarch64" in repo_lower:
-            log_info(f"  [detect_arch] repo_url matched arm64 -> arm64-v8a")
-            return "arm64-v8a"
-        elif "x86_64" in repo_lower or "amd64" in repo_lower:
-            log_info(f"  [detect_arch] repo_url matched x86_64 -> x86_64")
+    if repo_name == "V2rayN":
+        if "win" in name_lower or "windows" in name_lower:
             return "x86_64"
-    
-    if "win" in name_lower or "windows" in name_lower:
-        log_info(f"  [detect_arch] windows fallback -> x86_64")
+        if "linux" in name_lower:
+            return "x86_64"
         return "x86_64"
     
-    log_info(f"  [detect_arch] no match -> unknown")
+    if "win" in name_lower or "windows" in name_lower:
+        return "x86_64"
+    
     return "unknown"
 
 def detect_system(filename, repo_url=None, repo_name=None):
     name_lower = filename.lower()
-    log_info(f"  [detect_system] input: {filename}, repo_name={repo_name}")
     
     if name_lower.endswith('.apk'):
-        log_info(f"  [detect_system] .apk extension -> Android")
         return "Android"
     
-    if name_lower.endswith(('.exe', '.msi')):
-        log_info(f"  [detect_system] .exe/.msi extension -> Windows")
-        return "Windows"
-    
-    if name_lower.endswith('.dmg'):
-        log_info(f"  [detect_system] .dmg extension -> macOS")
-        return "macOS"
-    
-    if name_lower.endswith(('.deb', '.rpm', '.AppImage')):
-        log_info(f"  [detect_system] .deb/.rpm/.AppImage extension -> Linux")
+    if name_lower.endswith('.deb') or name_lower.endswith('.rpm') or name_lower.endswith('.AppImage'):
         return "Linux"
     
-    if repo_name and "v2ray" in repo_name.lower():
-        if "win" in name_lower or "windows" in name_lower or "exe" in name_lower:
-            log_info(f"  [detect_system] v2ray repo + windows keyword -> Windows")
-            return "Windows"
+    if name_lower.endswith('.dmg'):
+        return "macOS"
+    
+    if name_lower.endswith('.exe') or name_lower.endswith('.msi'):
+        return "Windows"
+    
+    if repo_name == "V2rayN":
         if "linux" in name_lower:
-            log_info(f"  [detect_system] v2ray repo + linux keyword -> Linux")
             return "Linux"
         if "mac" in name_lower or "osx" in name_lower:
-            log_info(f"  [detect_system] v2ray repo + mac keyword -> macOS")
             return "macOS"
-        log_info(f"  [detect_system] v2ray repo fallback -> Windows")
+        if "win" in name_lower or "windows" in name_lower:
+            return "Windows"
+        if ".deb" in name_lower:
+            return "Linux"
+        if ".dmg" in name_lower:
+            return "macOS"
+        return "Windows"
+    
+    if repo_name == "Clash Verge":
+        if "android" in name_lower:
+            return "Android"
+        if "linux" in name_lower:
+            return "Linux"
+        if "mac" in name_lower or "darwin" in name_lower:
+            return "macOS"
+        if "win" in name_lower or "windows" in name_lower:
+            return "Windows"
+        return "Windows"
+    
+    if repo_name == "Hiddify":
+        if "android" in name_lower:
+            return "Android"
+        if "linux" in name_lower:
+            return "Linux"
+        if "mac" in name_lower or "darwin" in name_lower:
+            return "macOS"
+        if "win" in name_lower or "windows" in name_lower:
+            return "Windows"
         return "Windows"
     
     for system, keywords in SYSTEM_MAP.items():
         for keyword in keywords:
             if keyword in name_lower:
-                log_info(f"  [detect_system] SYSTEM_MAP matched {system} -> {system}")
                 return system
     
-    for system, keywords in SYSTEM_MAP.items():
-        for keyword in keywords:
-            if repo_url and keyword in repo_url.lower():
-                log_info(f"  [detect_system] repo_url matched {system} -> {system}")
-                return system
-            if repo_name and keyword in repo_name.lower():
-                log_info(f"  [detect_system] repo_name matched {system} -> {system}")
-                return system
-    
-    if any(x in name_lower for x in ["apk", "arm64", "armeabi", "v7a"]):
-        log_info(f"  [detect_system] android keyword fallback -> Android")
+    if any(x in name_lower for x in ["apk", "arm64", "armeabi"]):
         return "Android"
     
     if any(x in name_lower for x in ["exe", "msi", "win"]):
-        log_info(f"  [detect_system] windows keyword fallback -> Windows")
         return "Windows"
     
     if any(x in name_lower for x in ["dmg", "pkg", "mac"]):
-        log_info(f"  [detect_system] mac keyword fallback -> macOS")
         return "macOS"
     
-    if any(x in name_lower for x in ["appimage", "deb", "rpm", "linux"]):
-        log_info(f"  [detect_system] linux keyword fallback -> Linux")
+    if any(x in name_lower for x in ["deb", "rpm", "linux", "appimage"]):
         return "Linux"
     
-    log_info(f"  [detect_system] no match -> Unknown")
     return "Unknown"
-
-def normalize_arch(arch, filename, system="Unknown"):
-    if arch != "unknown":
-        return arch
-    
-    name_lower = filename.lower()
-    
-    if system == "Windows":
-        if "64" in name_lower or "x64" in name_lower or "amd64" in name_lower:
-            return "x86_64"
-        return "x86"
-    elif system == "Android":
-        if "arm64" in name_lower or "aarch64" in name_lower:
-            return "arm64-v8a"
-        elif "arm" in name_lower or "armeabi" in name_lower:
-            return "armeabi-v7a"
-        return "universal"
-    elif system == "macOS":
-        if "arm64" in name_lower or "aarch64" in name_lower:
-            return "arm64-v8a"
-        return "x86_64"
-    elif system == "Linux":
-        if "arm64" in name_lower or "aarch64" in name_lower:
-            return "arm64-v8a"
-        elif "arm" in name_lower:
-            return "armeabi-v7a"
-        return "x86_64"
-    
-    return "unknown"
 
 def is_valid_asset(name):
     low = name.lower()
