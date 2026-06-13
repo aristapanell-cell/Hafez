@@ -1,18 +1,21 @@
+# utils.py (اصلاح شده)
+
+import re
 from config import REPO_NAMES
 
 ARCH_MAP = {
-    "arm64-v8a": ["arm64-v8a", "aarch64", "arm64"],
-    "armeabi-v7a": ["armeabi-v7a", "armv7", "armv7a"],
-    "x86_64": ["x86_64", "amd64", "x64", "64bit"],
-    "x86": ["x86", "win32", "i386", "i686"],
-    "universal": ["universal", "all", "multi", "fat"]
+    "arm64-v8a": ["arm64-v8a", "aarch64", "arm64", "arm64-v8a"],
+    "armeabi-v7a": ["armeabi-v7a", "armv7", "armv7a", "armeabi"],
+    "x86_64": ["x86_64", "amd64", "x64", "64bit", "64-bit", "_64", ".64"],
+    "x86": ["x86", "win32", "i386", "i686", "32bit", "32-bit", "_32", ".32"],
+    "universal": ["universal", "all", "multi", "fat", "any"]
 }
 
 SYSTEM_MAP = {
-    "Android": ["android", "apk", "arm", "aarch64", "arm64", "armeabi", "v7a"],
-    "Windows": ["windows", ".exe", ".msi", "win"],
-    "Linux": ["linux", "appimage", "deb", "rpm", "ubuntu", "debian"],
-    "macOS": ["mac", "darwin", "dmg", "osx", "macos"]
+    "Windows": ["windows", "win", ".exe", ".msi", "win64", "win32", "win-x64", "win-x86", "pc"],
+    "Android": ["android", ".apk", "arm64", "armeabi", "aarch64", "android-arm64", "play"],
+    "Linux": ["linux", "appimage", ".deb", ".rpm", "ubuntu", "debian", "linux-x64", "gnu"],
+    "macOS": ["mac", "darwin", ".dmg", "osx", "macos", "macosx", ".pkg"]
 }
 
 ARCH_SYSTEM_MAP = {
@@ -21,6 +24,7 @@ ARCH_SYSTEM_MAP = {
     "arm64-v8a": ("Android", "arm64-v8a"),
     "armeabi-v7a": ("Android", "armeabi-v7a"),
     "armv7": ("Android", "armeabi-v7a"),
+    "armeabi": ("Android", "armeabi-v7a"),
     "x86_64": ("Windows", "x86_64"),
     "amd64": ("Windows", "x86_64"),
     "x64": ("Windows", "x86_64"),
@@ -41,73 +45,121 @@ def get_repo_name(url):
     return full_name.split("/")[-1]
 
 def detect_arch(filename, repo_url=None, release_name=None):
-    name = filename.lower()
-
+    name_lower = filename.lower()
+    
+    if "64" in name_lower or "x64" in name_lower or "amd64" in name_lower:
+        if "arm" not in name_lower and "aarch" not in name_lower:
+            if "86" not in name_lower:
+                return "x86_64"
+    
+    if "32" in name_lower or "x86" in name_lower or "i386" in name_lower or "i686" in name_lower:
+        if "arm" not in name_lower and "64" not in name_lower:
+            return "x86"
+    
     for arch, keys in ARCH_MAP.items():
-        if any(x in name for x in keys):
-            return arch
-
-    if repo_url:
-        repo = repo_url.lower()
-        for arch, keys in ARCH_MAP.items():
-            if any(x in repo for x in keys):
-                return arch
-
+        for key in keys:
+            if key in name_lower:
+                if arch == "arm64-v8a" and ("arm64" in name_lower or "aarch64" in name_lower):
+                    return arch
+                elif arch == "armeabi-v7a" and ("armeabi" in name_lower or "armv7" in name_lower):
+                    return arch
+                elif key in name_lower:
+                    return arch
+    
     if release_name:
-        rel = release_name.lower()
+        release_lower = release_name.lower()
         for arch, keys in ARCH_MAP.items():
-            if any(x in rel for x in keys):
-                return arch
-
+            for key in keys:
+                if key in release_lower:
+                    return arch
+    
+    if repo_url:
+        repo_lower = repo_url.lower()
+        if "arm64" in repo_lower or "aarch64" in repo_lower:
+            return "arm64-v8a"
+        elif "x86_64" in repo_lower or "amd64" in repo_lower:
+            return "x86_64"
+    
     return "unknown"
 
 def detect_system(filename, repo_url=None, repo_name=None):
-    text = filename.lower()
-    repo = (repo_url.split("/repos/")[1].split("/releases")[0].lower() if repo_url else "")
-    combined = text + " " + repo + " " + (repo_name.lower() if repo_name else "")
-
-    for key, (system, arch) in ARCH_SYSTEM_MAP.items():
-        if key in combined:
-            return system
-
-    for sys, keys in SYSTEM_MAP.items():
-        if any(x in combined for x in keys):
-            return sys
-
-    if "android" in repo or "android" in combined:
-        return "Android"
-
-    if any(x in repo for x in ["windows", "verge", "v2rayn"]):
+    name_lower = filename.lower()
+    repo_lower = repo_url.lower() if repo_url else ""
+    repo_name_lower = repo_name.lower() if repo_name else ""
+    
+    if name_lower.endswith(('.exe', '.msi')):
         return "Windows"
-
-    if any(x in combined for x in ["apk", "arm64", "armeabi", "v7a"]):
+    
+    if name_lower.endswith('.apk'):
         return "Android"
-
-    if any(x in combined for x in ["exe", "msi"]):
-        return "Windows"
-
-    if any(x in combined for x in ["dmg", "mac"]):
+    
+    if name_lower.endswith('.dmg'):
         return "macOS"
-
-    if any(x in combined for x in ["linux", "appimage", "deb", "rpm"]):
+    
+    if "v2ray" in repo_name_lower and ("win" in name_lower or "windows" in name_lower or "exe" in name_lower):
+        return "Windows"
+    
+    if "clash-verge" in repo_lower and "mac" in name_lower:
+        return "macOS"
+    
+    for system, keywords in SYSTEM_MAP.items():
+        for keyword in keywords:
+            if keyword in name_lower:
+                return system
+    
+    for system, keywords in SYSTEM_MAP.items():
+        for keyword in keywords:
+            if keyword in repo_lower or keyword in repo_name_lower:
+                return system
+    
+    if any(x in name_lower for x in ["apk", "arm64", "armeabi", "v7a"]):
+        return "Android"
+    
+    if any(x in name_lower for x in ["exe", "msi", "win"]):
+        return "Windows"
+    
+    if any(x in name_lower for x in ["dmg", "pkg", "mac"]):
+        return "macOS"
+    
+    if any(x in name_lower for x in ["appimage", "deb", "rpm", "linux"]):
         return "Linux"
-
+    
     return "Unknown"
 
-def normalize_arch(arch, filename):
+def normalize_arch(arch, filename, system="Unknown"):
     if arch != "unknown":
         return arch
-    name = filename.lower()
-    for k in ARCH_MAP:
-        if k in name:
-            return k
+    
+    name_lower = filename.lower()
+    
+    if system == "Windows":
+        if "64" in name_lower or "x64" in name_lower or "amd64" in name_lower:
+            return "x86_64"
+        return "x86"
+    elif system == "Android":
+        if "arm64" in name_lower or "aarch64" in name_lower:
+            return "arm64-v8a"
+        elif "arm" in name_lower or "armeabi" in name_lower:
+            return "armeabi-v7a"
+        return "universal"
+    elif system == "macOS":
+        if "arm64" in name_lower or "aarch64" in name_lower:
+            return "arm64-v8a"
+        return "x86_64"
+    elif system == "Linux":
+        if "arm64" in name_lower or "aarch64" in name_lower:
+            return "arm64-v8a"
+        elif "arm" in name_lower:
+            return "armeabi-v7a"
+        return "x86_64"
+    
     return "unknown"
 
 def is_valid_asset(name):
     low = name.lower()
     if "source code" in low:
         return False
-    return any(low.endswith(ext) for ext in [".apk", ".exe", ".msi", ".zip", ".tar.gz"])
+    return any(low.endswith(ext) for ext in [".apk", ".exe", ".msi", ".zip", ".tar.gz", ".dmg", ".pkg", ".deb", ".rpm", ".AppImage"])
 
 def format_size(size_bytes):
     if size_bytes < 1024 * 1024:
