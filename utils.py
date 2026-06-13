@@ -40,11 +40,25 @@ def get_repo_name(url):
             return value
     return full_name.split("/")[-1]
 
-def detect_arch(filename):
+def detect_arch(filename, repo_url=None, release_name=None):
     name = filename.lower()
+
     for arch, keys in ARCH_MAP.items():
         if any(x in name for x in keys):
             return arch
+
+    if repo_url:
+        repo = repo_url.lower()
+        for arch, keys in ARCH_MAP.items():
+            if any(x in repo for x in keys):
+                return arch
+
+    if release_name:
+        rel = release_name.lower()
+        for arch, keys in ARCH_MAP.items():
+            if any(x in rel for x in keys):
+                return arch
+
     return "unknown"
 
 def detect_system(filename, repo_url=None, repo_name=None):
@@ -62,8 +76,21 @@ def detect_system(filename, repo_url=None, repo_name=None):
 
     if "android" in repo or "android" in combined:
         return "Android"
+
     if any(x in repo for x in ["windows", "verge", "v2rayn"]):
         return "Windows"
+
+    if any(x in combined for x in ["apk", "arm64", "armeabi", "v7a"]):
+        return "Android"
+
+    if any(x in combined for x in ["exe", "msi"]):
+        return "Windows"
+
+    if any(x in combined for x in ["dmg", "mac"]):
+        return "macOS"
+
+    if any(x in combined for x in ["linux", "appimage", "deb", "rpm"]):
+        return "Linux"
 
     return "Unknown"
 
