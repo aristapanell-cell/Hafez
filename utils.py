@@ -1,7 +1,10 @@
 from config import REPO_NAMES
 
+def get_repo_key(url):
+    return url.split("/repos/")[1].split("/releases")[0]
+
 def get_repo_name(url):
-    full_name = url.split("/repos/")[1].split("/releases")[0]
+    full_name = get_repo_key(url)
     for key, value in REPO_NAMES.items():
         if full_name == key or full_name.endswith(key):
             return value
@@ -30,8 +33,7 @@ def is_valid_asset(name):
 def format_size(size_bytes):
     if size_bytes < 1024 * 1024:
         return f"{size_bytes // 1024}KB"
-    else:
-        return f"{size_bytes // (1024 * 1024)}MB"
+    return f"{size_bytes // (1024 * 1024)}MB"
 
 def build_caption(repo_name, tag, system, arch, size_mb, is_large=False):
     caption = f"""
