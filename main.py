@@ -1,5 +1,3 @@
-# main.py
-
 import asyncio
 import aiohttp
 
@@ -71,6 +69,7 @@ async def process(session, url, cache, tg):
                 return
 
             sent = False
+            sent_combinations = set()
 
             for idx, a in enumerate(assets):
                 filename = a["name"]
@@ -80,6 +79,12 @@ async def process(session, url, cache, tg):
 
                 arch = detect_arch(filename, url, tag, repo_name)
                 system = detect_system(filename, url, repo_name)
+
+                combo = f"{system}_{arch}"
+                if combo in sent_combinations:
+                    log_info(f"skip duplicate {combo} for {filename}")
+                    continue
+                sent_combinations.add(combo)
 
                 size = format_size(a["size"])
                 url_dl = a["browser_download_url"]
