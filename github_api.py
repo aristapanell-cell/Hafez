@@ -16,11 +16,21 @@ async def fetch_release(session, url):
             if resp.status != 200:
                 log_error(f"GitHub API error {resp.status}: {url}")
                 return None
+
             data = await resp.json()
             if not data:
                 return None
-            release = next((r for r in data if not r.get("prerelease")), data[0])
+
+            release = next(
+                (r for r in data if not r.get("prerelease") and not r.get("draft")),
+                None
+            )
+
+            if not release:
+                return None
+
             return release
+
     except Exception as e:
         log_error(f"Fetch failed: {url} -> {e}")
         return None
