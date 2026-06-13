@@ -15,6 +15,21 @@ SYSTEM_MAP = {
     "macOS": ["mac", "darwin", "dmg", "osx", "macos"]
 }
 
+ARCH_SYSTEM_MAP = {
+    "arm64": ("Android", "arm64-v8a"),
+    "aarch64": ("Android", "arm64-v8a"),
+    "arm64-v8a": ("Android", "arm64-v8a"),
+    "armeabi-v7a": ("Android", "armeabi-v7a"),
+    "armv7": ("Android", "armeabi-v7a"),
+    "x86_64": ("Windows", "x86_64"),
+    "amd64": ("Windows", "x86_64"),
+    "x64": ("Windows", "x86_64"),
+    "x86": ("Windows", "x86"),
+    "win32": ("Windows", "x86"),
+    "i386": ("Linux", "x86"),
+    "i686": ("Linux", "x86")
+}
+
 def get_repo_key(url):
     return url.split("/repos/")[1].split("/releases")[0]
 
@@ -34,21 +49,32 @@ def detect_arch(filename):
 
 def detect_system(filename, repo_url=None, repo_name=None):
     text = filename.lower()
-    if repo_url:
-        text += " " + repo_url.lower()
-    if repo_name:
-        text += " " + repo_name.lower()
+    repo = (repo_url.split("/repos/")[1].split("/releases")[0].lower() if repo_url else "")
+    combined = text + " " + repo + " " + (repo_name.lower() if repo_name else "")
 
-    if any(x in text for x in SYSTEM_MAP["Android"]):
+    for key, (system, arch) in ARCH_SYSTEM_MAP.items():
+        if key in combined:
+            return system
+
+    for sys, keys in SYSTEM_MAP.items():
+        if any(x in combined for x in keys):
+            return sys
+
+    if "android" in repo or "android" in combined:
         return "Android"
-    if any(x in text for x in SYSTEM_MAP["Windows"]):
+    if any(x in repo for x in ["windows", "verge", "v2rayn"]):
         return "Windows"
-    if any(x in text for x in SYSTEM_MAP["Linux"]):
-        return "Linux"
-    if any(x in text for x in SYSTEM_MAP["macOS"]):
-        return "macOS"
 
     return "Unknown"
+
+def normalize_arch(arch, filename):
+    if arch != "unknown":
+        return arch
+    name = filename.lower()
+    for k in ARCH_MAP:
+        if k in name:
+            return k
+    return "unknown"
 
 def is_valid_asset(name):
     low = name.lower()
