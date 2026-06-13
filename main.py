@@ -41,6 +41,10 @@ async def process(session, url, cache, tg):
             release_id = release["id"]
             tag = release["tag_name"]
 
+            if release.get("prerelease", False):
+                log_info(f"skip prerelease {repo_name} - {tag}")
+                return
+
             if repo_key in cache and cache[repo_key]["release_id"] == release_id:
                 log_info(f"skip {repo_name}")
                 return
@@ -57,32 +61,24 @@ async def process(session, url, cache, tg):
                 if not is_valid_asset(filename):
                     continue
 
-                log_info(f"=== Processing asset: {filename} ===")
-                log_info(f"  repo_name: {repo_name}")
-                log_info(f"  tag: {tag}")
-                log_info(f"  size: {a['size']} bytes ({format_size(a['size'])})")
-                
-                arch = detect_arch(filename, url, tag)
+                arch = detect_arch(filename, url, tag, repo_name)
                 system = detect_system(filename, url, repo_name)
 
                 size = format_size(a["size"])
                 url_dl = a["browser_download_url"]
                 is_large = a["size"] > SIZE_LIMIT
 
-                log_info(f"  FINAL: arch={arch}, system={system}, is_large={is_large}")
-
                 caption = build_caption(repo_name, tag, system, arch, size, is_large=is_large)
+
+                log_info(f"FILE: {filename} | arch={arch} | system={system} | size={a['size']} | large={is_large}")
 
                 data = await download(session, url_dl)
 
                 if data and len(data) < SIZE_LIMIT:
-                    log_info(f"  sending as file (size={len(data)} bytes)")
                     ok = await send_file(tg, BOT_TOKEN, CHAT_ID, data, filename, caption, url_dl)
                     if not ok:
-                        log_info(f"  file send failed, sending as link instead")
                         await send_link(tg, BOT_TOKEN, CHAT_ID, caption, url_dl)
                 else:
-                    log_info(f"  sending as link only (data={len(data) if data else 'None'}, limit={SIZE_LIMIT})")
                     await send_link(tg, BOT_TOKEN, CHAT_ID, caption, url_dl)
 
                 sent = True
