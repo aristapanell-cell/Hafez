@@ -2,6 +2,7 @@
 
 import re
 from config import REPO_NAMES
+from logger import log_info
 
 ARCH_MAP = {
     "arm64-v8a": ["arm64-v8a", "aarch64", "arm64", "arm64-v8a"],
@@ -46,32 +47,41 @@ def get_repo_name(url):
 
 def detect_arch(filename, repo_url=None, release_name=None):
     name_lower = filename.lower()
+    log_info(f"  [detect_arch] input: {filename}")
     
     if "arm64" in name_lower or "aarch64" in name_lower or "arm64-v8a" in name_lower:
+        log_info(f"  [detect_arch] matched arm64 pattern -> arm64-v8a")
         return "arm64-v8a"
     
     if "armeabi-v7a" in name_lower or "armv7" in name_lower:
+        log_info(f"  [detect_arch] matched armeabi-v7a pattern -> armeabi-v7a")
         return "armeabi-v7a"
     
     if "armeabi" in name_lower and "64" not in name_lower:
+        log_info(f"  [detect_arch] matched armeabi pattern -> armeabi-v7a")
         return "armeabi-v7a"
     
     if "x86_64" in name_lower or "amd64" in name_lower or "x64" in name_lower:
         if "arm" not in name_lower:
+            log_info(f"  [detect_arch] matched x86_64 pattern -> x86_64")
             return "x86_64"
     
     if "x86" in name_lower or "i386" in name_lower or "i686" in name_lower:
         if "64" not in name_lower and "arm" not in name_lower:
+            log_info(f"  [detect_arch] matched x86 pattern -> x86")
             return "x86"
     
     for arch, keys in ARCH_MAP.items():
         for key in keys:
             if key in name_lower:
                 if arch == "arm64-v8a" and ("arm64" in name_lower or "aarch64" in name_lower):
+                    log_info(f"  [detect_arch] ARCH_MAP matched {arch} -> {arch}")
                     return arch
                 elif arch == "armeabi-v7a" and ("armeabi" in name_lower or "armv7" in name_lower):
+                    log_info(f"  [detect_arch] ARCH_MAP matched {arch} -> {arch}")
                     return arch
                 elif key in name_lower:
+                    log_info(f"  [detect_arch] ARCH_MAP matched {arch} -> {arch}")
                     return arch
     
     if release_name:
@@ -79,68 +89,90 @@ def detect_arch(filename, repo_url=None, release_name=None):
         for arch, keys in ARCH_MAP.items():
             for key in keys:
                 if key in release_lower:
+                    log_info(f"  [detect_arch] release_name matched {arch} -> {arch}")
                     return arch
     
     if repo_url:
         repo_lower = repo_url.lower()
         if "arm64" in repo_lower or "aarch64" in repo_lower:
+            log_info(f"  [detect_arch] repo_url matched arm64 -> arm64-v8a")
             return "arm64-v8a"
         elif "x86_64" in repo_lower or "amd64" in repo_lower:
+            log_info(f"  [detect_arch] repo_url matched x86_64 -> x86_64")
             return "x86_64"
     
     if "win" in name_lower or "windows" in name_lower:
+        log_info(f"  [detect_arch] windows fallback -> x86_64")
         return "x86_64"
     
+    log_info(f"  [detect_arch] no match -> unknown")
     return "unknown"
 
 def detect_system(filename, repo_url=None, repo_name=None):
     name_lower = filename.lower()
+    log_info(f"  [detect_system] input: {filename}, repo_name={repo_name}")
     
     if name_lower.endswith('.apk'):
+        log_info(f"  [detect_system] .apk extension -> Android")
         return "Android"
     
     if name_lower.endswith(('.exe', '.msi')):
+        log_info(f"  [detect_system] .exe/.msi extension -> Windows")
         return "Windows"
     
     if name_lower.endswith('.dmg'):
+        log_info(f"  [detect_system] .dmg extension -> macOS")
         return "macOS"
     
     if name_lower.endswith(('.deb', '.rpm', '.AppImage')):
+        log_info(f"  [detect_system] .deb/.rpm/.AppImage extension -> Linux")
         return "Linux"
     
     if repo_name and "v2ray" in repo_name.lower():
         if "win" in name_lower or "windows" in name_lower or "exe" in name_lower:
+            log_info(f"  [detect_system] v2ray repo + windows keyword -> Windows")
             return "Windows"
         if "linux" in name_lower:
+            log_info(f"  [detect_system] v2ray repo + linux keyword -> Linux")
             return "Linux"
         if "mac" in name_lower or "osx" in name_lower:
+            log_info(f"  [detect_system] v2ray repo + mac keyword -> macOS")
             return "macOS"
+        log_info(f"  [detect_system] v2ray repo fallback -> Windows")
         return "Windows"
     
     for system, keywords in SYSTEM_MAP.items():
         for keyword in keywords:
             if keyword in name_lower:
+                log_info(f"  [detect_system] SYSTEM_MAP matched {system} -> {system}")
                 return system
     
     for system, keywords in SYSTEM_MAP.items():
         for keyword in keywords:
             if repo_url and keyword in repo_url.lower():
+                log_info(f"  [detect_system] repo_url matched {system} -> {system}")
                 return system
             if repo_name and keyword in repo_name.lower():
+                log_info(f"  [detect_system] repo_name matched {system} -> {system}")
                 return system
     
     if any(x in name_lower for x in ["apk", "arm64", "armeabi", "v7a"]):
+        log_info(f"  [detect_system] android keyword fallback -> Android")
         return "Android"
     
     if any(x in name_lower for x in ["exe", "msi", "win"]):
+        log_info(f"  [detect_system] windows keyword fallback -> Windows")
         return "Windows"
     
     if any(x in name_lower for x in ["dmg", "pkg", "mac"]):
+        log_info(f"  [detect_system] mac keyword fallback -> macOS")
         return "macOS"
     
     if any(x in name_lower for x in ["appimage", "deb", "rpm", "linux"]):
+        log_info(f"  [detect_system] linux keyword fallback -> Linux")
         return "Linux"
     
+    log_info(f"  [detect_system] no match -> Unknown")
     return "Unknown"
 
 def normalize_arch(arch, filename, system="Unknown"):
