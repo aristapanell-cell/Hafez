@@ -3,7 +3,7 @@ from config import REPO_NAMES
 def get_repo_name(url):
     full_name = url.split("/repos/")[1].split("/releases")[0]
     for key, value in REPO_NAMES.items():
-        if key in full_name:
+        if full_name == key or full_name.endswith(key):
             return value
     return full_name.split("/")[-1]
 
@@ -19,13 +19,13 @@ def detect_arch(filename):
         return "x86"
     if "universal" in name or "all" in name:
         return "universal"
-    return None
+    return "unknown"
 
 def is_valid_asset(name):
     low = name.lower()
     if "source code" in low:
         return False
-    return any(low.endswith(ext) for ext in [".apk", ".exe", ".msi", ".zip"])
+    return any(low.endswith(ext) for ext in [".apk", ".exe", ".msi", ".zip", ".tar.gz"])
 
 def format_size(size_bytes):
     if size_bytes < 1024 * 1024:
@@ -69,5 +69,5 @@ def build_caption(repo_name, tag, system, arch, size_mb, is_large=False):
 ➖➖➖➖➖➖➖➖
 
 #Arista #{repo_name} #بروزرسانی"""
-    
+
     return caption
