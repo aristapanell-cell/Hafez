@@ -1,4 +1,4 @@
-# utils.py (اصلاح شده)
+# utils.py
 
 import re
 from config import REPO_NAMES
@@ -47,13 +47,21 @@ def get_repo_name(url):
 def detect_arch(filename, repo_url=None, release_name=None):
     name_lower = filename.lower()
     
-    if "64" in name_lower or "x64" in name_lower or "amd64" in name_lower:
-        if "arm" not in name_lower and "aarch" not in name_lower:
-            if "86" not in name_lower:
-                return "x86_64"
+    if "arm64" in name_lower or "aarch64" in name_lower or "arm64-v8a" in name_lower:
+        return "arm64-v8a"
     
-    if "32" in name_lower or "x86" in name_lower or "i386" in name_lower or "i686" in name_lower:
-        if "arm" not in name_lower and "64" not in name_lower:
+    if "armeabi-v7a" in name_lower or "armv7" in name_lower:
+        return "armeabi-v7a"
+    
+    if "armeabi" in name_lower and "64" not in name_lower:
+        return "armeabi-v7a"
+    
+    if "x86_64" in name_lower or "amd64" in name_lower or "x64" in name_lower:
+        if "arm" not in name_lower:
+            return "x86_64"
+    
+    if "x86" in name_lower or "i386" in name_lower or "i686" in name_lower:
+        if "64" not in name_lower and "arm" not in name_lower:
             return "x86"
     
     for arch, keys in ARCH_MAP.items():
@@ -80,27 +88,34 @@ def detect_arch(filename, repo_url=None, release_name=None):
         elif "x86_64" in repo_lower or "amd64" in repo_lower:
             return "x86_64"
     
+    if "win" in name_lower or "windows" in name_lower:
+        return "x86_64"
+    
     return "unknown"
 
 def detect_system(filename, repo_url=None, repo_name=None):
     name_lower = filename.lower()
-    repo_lower = repo_url.lower() if repo_url else ""
-    repo_name_lower = repo_name.lower() if repo_name else ""
-    
-    if name_lower.endswith(('.exe', '.msi')):
-        return "Windows"
     
     if name_lower.endswith('.apk'):
         return "Android"
     
+    if name_lower.endswith(('.exe', '.msi')):
+        return "Windows"
+    
     if name_lower.endswith('.dmg'):
         return "macOS"
     
-    if "v2ray" in repo_name_lower and ("win" in name_lower or "windows" in name_lower or "exe" in name_lower):
-        return "Windows"
+    if name_lower.endswith(('.deb', '.rpm', '.AppImage')):
+        return "Linux"
     
-    if "clash-verge" in repo_lower and "mac" in name_lower:
-        return "macOS"
+    if repo_name and "v2ray" in repo_name.lower():
+        if "win" in name_lower or "windows" in name_lower or "exe" in name_lower:
+            return "Windows"
+        if "linux" in name_lower:
+            return "Linux"
+        if "mac" in name_lower or "osx" in name_lower:
+            return "macOS"
+        return "Windows"
     
     for system, keywords in SYSTEM_MAP.items():
         for keyword in keywords:
@@ -109,7 +124,9 @@ def detect_system(filename, repo_url=None, repo_name=None):
     
     for system, keywords in SYSTEM_MAP.items():
         for keyword in keywords:
-            if keyword in repo_lower or keyword in repo_name_lower:
+            if repo_url and keyword in repo_url.lower():
+                return system
+            if repo_name and keyword in repo_name.lower():
                 return system
     
     if any(x in name_lower for x in ["apk", "arm64", "armeabi", "v7a"]):
