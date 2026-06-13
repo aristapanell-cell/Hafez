@@ -1,3 +1,5 @@
+# main.py
+
 import asyncio
 import aiohttp
 
@@ -60,10 +62,11 @@ async def process(session, url, cache, tg):
 
                 size = format_size(a["size"])
                 url_dl = a["browser_download_url"]
+                is_large = a["size"] > SIZE_LIMIT
 
-                caption = build_caption(repo_name, tag, system, arch, size)
+                caption = build_caption(repo_name, tag, system, arch, size, is_large=is_large)
 
-                log_info(f"FILE: {filename} | {arch}")
+                log_info(f"FILE: {filename} | arch={arch} | system={system} | size={a['size']}")
 
                 data = await download(session, url_dl)
 
