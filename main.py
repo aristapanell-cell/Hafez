@@ -1,109 +1,101 @@
 import asyncio
 import aiohttp
+
 from config import *
 from cache import load_cache, update_cache
 from github_api import fetch_release
 from telegram_api import send_file, send_link
-from utils import get_repo_name, detect_arch, is_valid_asset, build_caption, format_size
+from utils import (
+    get_repo_key,
+    get_repo_name,
+    detect_arch,
+    is_valid_asset,
+    format_size,
+    build_caption,
+    detect_system
+)
 from logger import log_info, log_error, log_success
 
 semaphore = asyncio.Semaphore(MAX_CONCURRENT)
 
-async def download_file(session, url):
+async def download(session, url):
     try:
-        async with session.get(url) as resp:
-            if resp.status == 200:
-                return await resp.read()
-            log_error(f"Download HTTP {resp.status}: {url}")
-            return None
-    except Exception as e:
-        log_error(f"Download failed: {url} -> {e}")
+        async with session.get(url) as r:
+            if r.status == 200:
+                return await r.read()
+    except:
         return None
 
-async def process_repo(session, repo_url, cache, tg_session):
+async def process(session, url, cache, tg):
     async with semaphore:
         try:
-            release = await fetch_release(session, repo_url)
+            release = await fetch_release(session, url)
             if not release:
-                log_error(f"No release: {repo_url}")
                 return
 
-            repo_name = get_repo_name(repo_url)
+            repo_key = get_repo_key(url)
+            repo_name = get_repo_name(url)
+
             release_id = release["id"]
             tag = release["tag_name"]
 
-            if repo_name in cache and cache[repo_name]["release_id"] == release_id:
-                log_info(f"⏩ {repo_name} | already sent ({tag})")
+            if repo_key in cache and cache[repo_key]["release_id"] == release_id:
+                log_info(f"skip {repo_name}")
                 return
-
-            log_info(f"🔄 {repo_name} | new release: {tag}")
 
             assets = release.get("assets", [])
             if not assets:
-                log_info(f"⚠️ {repo_name} | no assets")
                 return
 
-            sent_any = False
+            sent = False
 
-            for asset in assets:
-                filename = asset["name"]
+            for a in assets:
+                filename = a["name"]
+
                 if not is_valid_asset(filename):
                     continue
 
                 arch = detect_arch(filename)
-                if not arch:
-                    continue
+                system = detect_system(filename)
 
-                system = "Android" if ".apk" in filename.lower() else "Windows"
-                file_size = asset["size"]
-                download_url = asset["browser_download_url"]
-                size_mb = format_size(file_size)
-                is_large = file_size > SIZE_LIMIT
-                
-                caption = build_caption(repo_name, tag, system, arch, size_mb, is_large)
+                size = format_size(a["size"])
+                url_dl = a["browser_download_url"]
 
-                log_info(f"📥 {repo_name} | {arch} | size: {file_size//1024}KB")
+                caption = build_caption(repo_name, tag, system, arch, size)
 
-                if file_size > SIZE_LIMIT:
-                    await send_link(tg_session, BOT_TOKEN, CHAT_ID, caption, download_url)
-                    log_info(f"📎 {repo_name} | {arch} (link only)")
-                    sent_any = True
+                log_info(f"FILE: {filename} | {arch}")
+
+                data = await download(session, url_dl)
+
+                if data and len(data) < SIZE_LIMIT:
+                    ok = await send_file(tg, BOT_TOKEN, CHAT_ID, data, filename, caption, url_dl)
+                    if not ok:
+                        await send_link(tg, BOT_TOKEN, CHAT_ID, caption, url_dl)
                 else:
-                    file_bytes = await download_file(session, download_url)
-                    if file_bytes:
-                        log_info(f"⬆️ Uploading {filename} to Telegram...")
-                        success = await send_file(tg_session, BOT_TOKEN, CHAT_ID, file_bytes, filename, caption, download_url)
-                        if success:
-                            log_info(f"📦 {repo_name} | {arch} (uploaded)")
-                            sent_any = True
-                        else:
-                            await send_link(tg_session, BOT_TOKEN, CHAT_ID, caption, download_url)
-                            log_info(f"📎 {repo_name} | {arch} (upload failed, link only)")
-                            sent_any = True
-                    else:
-                        await send_link(tg_session, BOT_TOKEN, CHAT_ID, caption, download_url)
-                        log_info(f"📎 {repo_name} | {arch} (download failed, link only)")
-                        sent_any = True
+                    await send_link(tg, BOT_TOKEN, CHAT_ID, caption, url_dl)
 
+                sent = True
                 await asyncio.sleep(1)
 
-            if sent_any:
-                await update_cache(repo_name, release_id, tag)
+            if sent:
+                await update_cache(repo_key, release_id, tag)
                 log_success(repo_name, tag)
 
         except Exception as e:
-            log_error(f"{repo_url} | {e}", exc=True)
+            log_error(str(e), exc=True)
 
 async def main():
-    log_info("🚀 Bot started")
+    log_info("bot started")
+
     cache = load_cache()
-    log_info(f"📦 Loaded cache: {len(cache)} repos")
 
-    async with aiohttp.ClientSession() as session, aiohttp.ClientSession() as tg_session:
-        tasks = [process_repo(session, url, cache, tg_session) for url in REPOS]
-        await asyncio.gather(*tasks)
+    async with aiohttp.ClientSession() as session, aiohttp.ClientSession() as tg:
+        await asyncio.gather(*[
+            process(session, url, cache, tg)
+            for url in REPOS
+        ])
 
-    log_info("✅ Bot finished")
+    log_info("done")
 
 if __name__ == "__main__":
     asyncio.run(main())
