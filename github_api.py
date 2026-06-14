@@ -1,7 +1,7 @@
 import aiohttp
 import re
 from typing import Optional, Dict, Any
-from logger import log_error
+from logger import log_error, log_info
 from config import GITHUB_TOKEN, REQUEST_TIMEOUT
 
 HEADERS = {
@@ -22,6 +22,7 @@ async def fetch_release(session: aiohttp.ClientSession, url: str) -> Optional[Di
 
             data = await resp.json()
             if not data or not isinstance(data, list):
+                log_info(f"No releases found for {url}")
                 return None
 
             release = next(
@@ -30,8 +31,10 @@ async def fetch_release(session: aiohttp.ClientSession, url: str) -> Optional[Di
             )
 
             if not release:
+                log_info(f"No stable release found for {url}")
                 return None
 
+            log_info(f"Found release: {release.get('tag_name')} for {url}")
             return release
 
     except Exception as e:
