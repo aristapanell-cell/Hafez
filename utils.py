@@ -170,7 +170,7 @@ def is_valid_asset(name):
     low = name.lower()
     if "source code" in low:
         return False
-    return any(low.endswith(ext) for ext in [".apk", ".exe", ".msi", ".zip", ".tar.gz", ".dmg", ".pkg", ".deb", ".rpm", ".AppImage"])
+    return any(low.endswith(ext) for ext in [".apk", ".exe", ".msi", ".zip", ".tar.gz", ".dmg", ".pkg", ".deb", ".rpm", ".AppImage", ".7z", ".tar.xz"])
 
 def format_size(size_bytes):
     if size_bytes < 1024 * 1024:
