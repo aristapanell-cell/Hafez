@@ -1,3 +1,4 @@
+# config.py
 import os
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -39,6 +40,7 @@ REPO_NAMES = {
     "v2rayNG": "V2rayNG",
     "ExclaveNetwork/Exclave": "Exclave",
     "dyhkwong/Exclave": "Exclave-Alt",
+    "openlibrecommunity/olcng": "OLCNG",
     "sing-box": "SingBox",
     "husi": "Husi",
     "NekoBoxForAndroid": "NekoBox",
