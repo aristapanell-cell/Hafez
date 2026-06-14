@@ -1,3 +1,4 @@
+# github_api.py
 import aiohttp
 from logger import log_error
 from config import GITHUB_TOKEN
@@ -12,7 +13,8 @@ if GITHUB_TOKEN:
 
 async def fetch_release(session, url):
     try:
-        async with session.get(url, headers=HEADERS) as resp:
+        timeout = aiohttp.ClientTimeout(total=30)
+        async with session.get(url, headers=HEADERS, timeout=timeout) as resp:
             if resp.status != 200:
                 log_error(f"GitHub API error {resp.status}: {url}")
                 return None
