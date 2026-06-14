@@ -1,5 +1,4 @@
 # telegram_api.py
-
 import aiohttp
 import json
 import asyncio
@@ -73,7 +72,7 @@ async def send_link(session, token, chat_id, text, url, retries=3):
                     if attempt < retries - 1:
                         await asyncio.sleep(2)
                         continue
-                return
+                return True
         except asyncio.TimeoutError:
             log_error(f"Timeout sending link (attempt {attempt+1}/{retries})")
             if attempt < retries - 1:
@@ -82,3 +81,5 @@ async def send_link(session, token, chat_id, text, url, retries=3):
             log_error(f"Send link error: {e}")
             if attempt < retries - 1:
                 await asyncio.sleep(2)
+    
+    return False
