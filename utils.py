@@ -1,6 +1,6 @@
-# utils.py
 import re
-from config import REPO_NAMES
+from typing import Optional, Dict, Set, Tuple
+from config import REPO_NAMES, REPO_PATTERNS
 
 ARCH_MAP = {
     "arm64-v8a": ["arm64-v8a", "aarch64", "arm64", "arm64-v8a"],
@@ -17,38 +17,33 @@ SYSTEM_MAP = {
     "macOS": ["mac", "darwin", ".dmg", "osx", "macos", "macosx", ".pkg"]
 }
 
-def get_repo_key(url):
+ARCH_PATTERNS = {
+    "arm64-v8a": re.compile(r'(arm64|aarch64|arm64-v8a)', re.IGNORECASE),
+    "armeabi-v7a": re.compile(r'(armeabi-v7a|armv7|armv7a|armeabi)(?!.*64)', re.IGNORECASE),
+    "x86_64": re.compile(r'(x86_64|amd64|x64|64bit|64-bit)', re.IGNORECASE),
+    "x86": re.compile(r'(x86|win32|i386|i686|32bit|32-bit)(?!.*64)', re.IGNORECASE),
+    "universal": re.compile(r'(universal|all|multi|fat|any)', re.IGNORECASE)
+}
+
+def get_repo_key(url: str) -> str:
     return url.split("/repos/")[1].split("/releases")[0]
 
-def get_repo_name(url):
+def get_repo_name(url: str) -> str:
     full_name = get_repo_key(url)
+    for pattern, name in REPO_PATTERNS.items():
+        if re.search(pattern, full_name):
+            return name
     for key, value in REPO_NAMES.items():
         if full_name == key or full_name.endswith(key):
             return value
     return full_name.split("/")[-1]
 
-def detect_arch(filename, repo_url=None, release_name=None, repo_name=None):
+def detect_arch(filename: str, repo_url: Optional[str] = None, release_name: Optional[str] = None, repo_name: Optional[str] = None) -> str:
     name_lower = filename.lower()
     
-    if "arm64" in name_lower or "aarch64" in name_lower or "arm64-v8a" in name_lower:
-        return "arm64-v8a"
-    
-    if "armeabi-v7a" in name_lower or "armv7" in name_lower:
-        return "armeabi-v7a"
-    
-    if "armeabi" in name_lower and "64" not in name_lower:
-        return "armeabi-v7a"
-    
-    if "x86_64" in name_lower or "amd64" in name_lower or "x64" in name_lower:
-        if "arm" not in name_lower:
-            return "x86_64"
-    
-    if "x86" in name_lower or "i386" in name_lower or "i686" in name_lower:
-        if "64" not in name_lower and "arm" not in name_lower:
-            return "x86"
-    
-    if "universal" in name_lower:
-        return "universal"
+    for arch, pattern in ARCH_PATTERNS.items():
+        if pattern.search(name_lower):
+            return arch
     
     if repo_name == "V2rayN":
         if "win" in name_lower or "windows" in name_lower:
@@ -80,7 +75,7 @@ def detect_arch(filename, repo_url=None, release_name=None, repo_name=None):
     
     return "unknown"
 
-def detect_system(filename, repo_url=None, repo_name=None):
+def detect_system(filename: str, repo_url: Optional[str] = None, repo_name: Optional[str] = None) -> str:
     name_lower = filename.lower()
     
     if "desktop" in name_lower and ("win" in name_lower or "windows" in name_lower):
@@ -166,18 +161,18 @@ def detect_system(filename, repo_url=None, repo_name=None):
     
     return "Unknown"
 
-def is_valid_asset(name):
+def is_valid_asset(name: str) -> bool:
     low = name.lower()
     if "source code" in low:
         return False
-    return any(low.endswith(ext) for ext in [".apk", ".exe", ".msi", ".zip", ".tar.gz", ".dmg", ".pkg", ".deb", ".rpm", ".AppImage", ".7z", ".tar.xz"])
+    return any(low.endswith(ext) for ext in [".apk", ".exe", ".msi", ".zip", ".dmg", ".pkg", ".deb", ".rpm", ".AppImage"])
 
-def format_size(size_bytes):
+def format_size(size_bytes: int) -> str:
     if size_bytes < 1024 * 1024:
         return f"{size_bytes // 1024}KB"
     return f"{size_bytes // (1024 * 1024)}MB"
 
-def build_caption(repo_name, tag, system, arch, size_str, is_large=False):
+def build_caption(repo_name: str, tag: str, system: str, arch: str, size_str: str, is_large: bool = False) -> str:
     caption = f"""
 ✨ <b>بروزرسانی جدید</b> ✨
 
