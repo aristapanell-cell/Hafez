@@ -19,31 +19,6 @@ from logger import log_info, log_error, log_success
 
 semaphore = asyncio.Semaphore(MAX_CONCURRENT)
 
-async def download(session, url, retries=3):
-    for attempt in range(retries):
-        try:
-            timeout = aiohttp.ClientTimeout(total=120, connect=30)
-            async with session.get(url, timeout=timeout) as r:
-                if r.status == 200:
-                    data = await r.read()
-                    log_info(f"Downloaded {len(data)} bytes from {url.split('/')[-1]}")
-                    return data
-                else:
-                    log_error(f"Download failed: HTTP {r.status} (attempt {attempt+1}/{retries})")
-                    if attempt < retries - 1:
-                        await asyncio.sleep(3)
-                        continue
-                    return None
-        except asyncio.TimeoutError:
-            log_error(f"Timeout downloading (attempt {attempt+1}/{retries})")
-            if attempt < retries - 1:
-                await asyncio.sleep(3)
-        except Exception as e:
-            log_error(f"Download error: {e} (attempt {attempt+1}/{retries})")
-            if attempt < retries - 1:
-                await asyncio.sleep(3)
-    return None
-
 async def process(session, session_tg, url):
     async with semaphore:
         try:
@@ -78,6 +53,19 @@ async def process(session, session_tg, url):
                 if not is_valid_asset(filename):
                     continue
 
+                file_size = a["size"]
+
+                if file_size > SIZE_LIMIT:
+                    log_info(f"SKIP DOWNLOAD: {filename} | size={file_size} bytes exceeds {SIZE_LIMIT} bytes, sending as link only")
+                    arch = detect_arch(filename, url, tag, repo_name)
+                    system = detect_system(filename, url, repo_name)
+                    size_str = format_size(file_size)
+                    url_dl = a["browser_download_url"]
+                    caption = build_caption(repo_name, tag, system, arch, size_str, is_large=True)
+                    await send_link(session_tg, BOT_TOKEN, CHAT_ID, caption, url_dl)
+                    sent = True
+                    continue
+
                 arch = detect_arch(filename, url, tag, repo_name)
                 system = detect_system(filename, url, repo_name)
 
@@ -87,24 +75,35 @@ async def process(session, session_tg, url):
                     continue
                 sent_combinations.add(combo)
 
-                size_str = format_size(a["size"])
+                size_str = format_size(file_size)
                 url_dl = a["browser_download_url"]
-                is_large = a["size"] > SIZE_LIMIT
 
-                caption = build_caption(repo_name, tag, system, arch, size_str, is_large=is_large)
+                caption = build_caption(repo_name, tag, system, arch, size_str, is_large=False)
 
-                log_info(f"FILE {idx+1}: {filename} | arch={arch} | system={system} | size={a['size']} | large={is_large}")
+                log_info(f"FILE {idx+1}: {filename} | arch={arch} | system={system} | size={file_size}")
 
-                data = await download(session, url_dl)
+                data = None
+                try:
+                    timeout = aiohttp.ClientTimeout(total=120, connect=30)
+                    async with session.get(url_dl, timeout=timeout) as r:
+                        if r.status == 200:
+                            data = await r.read()
+                            log_info(f"Downloaded {len(data)} bytes from {filename}")
+                        else:
+                            log_error(f"Download failed: HTTP {r.status} for {filename}")
+                except asyncio.TimeoutError:
+                    log_error(f"Timeout downloading {filename}")
+                except Exception as e:
+                    log_error(f"Download error for {filename}: {e}")
 
-                if data and len(data) < SIZE_LIMIT:
+                if data and len(data) <= SIZE_LIMIT:
                     ok = await send_file(session_tg, BOT_TOKEN, CHAT_ID, data, filename, caption, url_dl)
                     if not ok:
                         log_info(f"File send failed, sending as link")
                         await send_link(session_tg, BOT_TOKEN, CHAT_ID, caption, url_dl)
                 else:
                     if data:
-                        log_info(f"File too large ({len(data)} bytes), sending as link")
+                        log_info(f"File too large after download ({len(data)} bytes), sending as link")
                     else:
                         log_info(f"Download failed, sending as link")
                     await send_link(session_tg, BOT_TOKEN, CHAT_ID, caption, url_dl)
