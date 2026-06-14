@@ -34,7 +34,7 @@ async def send_file(session: aiohttp.ClientSession, token: str, chat_id: str, fi
                         await asyncio.sleep(2)
                         continue
                     return False
-                log_info("sent file")
+                log_info(f"File sent successfully: {filename}")
                 return True
         except asyncio.TimeoutError:
             log_error(f"Timeout sending file (attempt {attempt+1}/{retries})")
@@ -73,6 +73,7 @@ async def send_link(session: aiohttp.ClientSession, token: str, chat_id: str, te
                     if attempt < retries - 1:
                         await asyncio.sleep(2)
                         continue
+                log_info(f"Link sent successfully: {url}")
                 return True
         except asyncio.TimeoutError:
             log_error(f"Timeout sending link (attempt {attempt+1}/{retries})")
@@ -91,7 +92,10 @@ async def check_telegram_bot(session: aiohttp.ClientSession, token: str, chat_id
         timeout = aiohttp.ClientTimeout(total=REQUEST_TIMEOUT)
         async with session.get(api, timeout=timeout) as resp:
             if resp.status == 200:
+                log_info("Telegram bot health check passed")
                 return True
+            log_error(f"Telegram bot health check failed: {resp.status}")
             return False
-    except Exception:
+    except Exception as e:
+        log_error(f"Telegram bot health check error: {e}")
         return False
