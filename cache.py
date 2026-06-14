@@ -1,3 +1,4 @@
+# cache.py
 import json
 import os
 import asyncio
@@ -20,3 +21,12 @@ async def update_cache(repo_key, release_id, tag):
         cache = load_cache()
         cache[repo_key] = {"release_id": release_id, "tag": tag}
         save_cache(cache)
+
+async def check_and_update_cache(repo_key, release_id, tag):
+    async with cache_lock:
+        cache = load_cache()
+        if repo_key in cache and cache[repo_key]["release_id"] == release_id:
+            return False
+        cache[repo_key] = {"release_id": release_id, "tag": tag}
+        save_cache(cache)
+        return True
