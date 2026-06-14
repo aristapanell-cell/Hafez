@@ -1,5 +1,4 @@
 # utils.py
-
 import re
 from config import REPO_NAMES
 
@@ -137,10 +136,11 @@ def detect_system(filename, repo_url=None, repo_name=None):
         return "Windows"
     
     if repo_name == "ClashMeta" or repo_name == "FlClash":
-        if "arm64" in name_lower:
-            return "Android"
-        if "x86" in name_lower:
-            return "Android"
+        if "desktop" in name_lower or "win" in name_lower or "linux" in name_lower:
+            if "win" in name_lower:
+                return "Windows"
+            if "linux" in name_lower:
+                return "Linux"
         return "Android"
     
     for system, keywords in SYSTEM_MAP.items():
@@ -178,9 +178,6 @@ def format_size(size_bytes):
     return f"{size_bytes // (1024 * 1024)}MB"
 
 def build_caption(repo_name, tag, system, arch, size_mb, is_large=False):
-    if arch == "arm64-v8a" and system in ["Windows", "Windows Desktop"]:
-        arch = "arm64"
-    
     caption = f"""
 ✨ <b>بروزرسانی جدید</b> ✨
 
