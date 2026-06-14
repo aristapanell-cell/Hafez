@@ -1,10 +1,11 @@
-# telegram_api.py
 import aiohttp
 import json
 import asyncio
+from typing import Optional
 from logger import log_error, log_info
+from config import REQUEST_TIMEOUT
 
-async def send_file(session, token, chat_id, file_bytes, filename, caption, url, retries=3):
+async def send_file(session: aiohttp.ClientSession, token: str, chat_id: str, file_bytes: bytes, filename: str, caption: str, url: str, retries: int = 3) -> bool:
     api = f"https://api.telegram.org/bot{token}/sendDocument"
 
     markup = json.dumps({
@@ -20,7 +21,7 @@ async def send_file(session, token, chat_id, file_bytes, filename, caption, url,
 
     for attempt in range(retries):
         try:
-            async with session.post(api, data=data, timeout=aiohttp.ClientTimeout(total=30)) as resp:
+            async with session.post(api, data=data, timeout=aiohttp.ClientTimeout(total=REQUEST_TIMEOUT)) as resp:
                 if resp.status == 429:
                     retry_after = int((await resp.json()).get("parameters", {}).get("retry_after", 5))
                     log_info(f"Rate limited, waiting {retry_after}s (attempt {attempt+1}/{retries})")
@@ -46,7 +47,7 @@ async def send_file(session, token, chat_id, file_bytes, filename, caption, url,
     
     return False
 
-async def send_link(session, token, chat_id, text, url, retries=3):
+async def send_link(session: aiohttp.ClientSession, token: str, chat_id: str, text: str, url: str, retries: int = 3) -> bool:
     api = f"https://api.telegram.org/bot{token}/sendMessage"
 
     payload = {
@@ -60,7 +61,7 @@ async def send_link(session, token, chat_id, text, url, retries=3):
 
     for attempt in range(retries):
         try:
-            async with session.post(api, json=payload, timeout=aiohttp.ClientTimeout(total=30)) as resp:
+            async with session.post(api, json=payload, timeout=aiohttp.ClientTimeout(total=REQUEST_TIMEOUT)) as resp:
                 if resp.status == 429:
                     retry_after = int((await resp.json()).get("parameters", {}).get("retry_after", 5))
                     log_info(f"Rate limited on link, waiting {retry_after}s")
@@ -83,3 +84,14 @@ async def send_link(session, token, chat_id, text, url, retries=3):
                 await asyncio.sleep(2)
     
     return False
+
+async def check_telegram_bot(session: aiohttp.ClientSession, token: str, chat_id: str) -> bool:
+    try:
+        api = f"https://api.telegram.org/bot{token}/getMe"
+        timeout = aiohttp.ClientTimeout(total=REQUEST_TIMEOUT)
+        async with session.get(api, timeout=timeout) as resp:
+            if resp.status == 200:
+                return True
+            return False
+    except Exception:
+        return False
