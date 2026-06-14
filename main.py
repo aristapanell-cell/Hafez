@@ -1,8 +1,9 @@
+# main.py
 import asyncio
 import aiohttp
 
 from config import *
-from cache import load_cache, update_cache
+from cache import load_cache, check_and_update_cache
 from github_api import fetch_release
 from telegram_api import send_file, send_link
 from utils import (
@@ -43,7 +44,7 @@ async def download(session, url, retries=3):
                 await asyncio.sleep(3)
     return None
 
-async def process(session, url, cache, tg):
+async def process(session, session_tg, url, cache):
     async with semaphore:
         try:
             release = await fetch_release(session, url)
@@ -60,7 +61,7 @@ async def process(session, url, cache, tg):
                 log_info(f"skip prerelease {repo_name} - {tag}")
                 return
 
-            if repo_key in cache and cache[repo_key]["release_id"] == release_id:
+            if not await check_and_update_cache(repo_key, release_id, tag):
                 log_info(f"skip {repo_name}")
                 return
 
@@ -97,22 +98,21 @@ async def process(session, url, cache, tg):
                 data = await download(session, url_dl)
 
                 if data and len(data) < SIZE_LIMIT:
-                    ok = await send_file(tg, BOT_TOKEN, CHAT_ID, data, filename, caption, url_dl)
+                    ok = await send_file(session_tg, BOT_TOKEN, CHAT_ID, data, filename, caption, url_dl)
                     if not ok:
                         log_info(f"File send failed, sending as link")
-                        await send_link(tg, BOT_TOKEN, CHAT_ID, caption, url_dl)
+                        await send_link(session_tg, BOT_TOKEN, CHAT_ID, caption, url_dl)
                 else:
                     if data:
                         log_info(f"File too large ({len(data)} bytes), sending as link")
                     else:
                         log_info(f"Download failed, sending as link")
-                    await send_link(tg, BOT_TOKEN, CHAT_ID, caption, url_dl)
+                    await send_link(session_tg, BOT_TOKEN, CHAT_ID, caption, url_dl)
 
                 sent = True
                 await asyncio.sleep(2)
 
             if sent:
-                await update_cache(repo_key, release_id, tag)
                 log_success(repo_name, tag)
                 await asyncio.sleep(3)
 
@@ -125,9 +125,9 @@ async def main():
     cache = load_cache()
 
     connector = aiohttp.TCPConnector(limit=10, ttl_dns_cache=300)
-    async with aiohttp.ClientSession(connector=connector) as session, aiohttp.ClientSession(connector=connector) as tg:
+    async with aiohttp.ClientSession(connector=connector) as session, aiohttp.ClientSession(connector=connector) as session_tg:
         await asyncio.gather(*[
-            process(session, url, cache, tg)
+            process(session, session_tg, url, cache)
             for url in REPOS
         ])
 
