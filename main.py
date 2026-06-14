@@ -44,7 +44,7 @@ async def download(session, url, retries=3):
                 await asyncio.sleep(3)
     return None
 
-async def process(session, session_tg, url, cache):
+async def process(session, session_tg, url):
     async with semaphore:
         try:
             release = await fetch_release(session, url)
@@ -87,11 +87,11 @@ async def process(session, session_tg, url, cache):
                     continue
                 sent_combinations.add(combo)
 
-                size = format_size(a["size"])
+                size_str = format_size(a["size"])
                 url_dl = a["browser_download_url"]
                 is_large = a["size"] > SIZE_LIMIT
 
-                caption = build_caption(repo_name, tag, system, arch, size, is_large=is_large)
+                caption = build_caption(repo_name, tag, system, arch, size_str, is_large=is_large)
 
                 log_info(f"FILE {idx+1}: {filename} | arch={arch} | system={system} | size={a['size']} | large={is_large}")
 
@@ -122,12 +122,10 @@ async def process(session, session_tg, url, cache):
 async def main():
     log_info("bot started")
 
-    cache = load_cache()
-
     connector = aiohttp.TCPConnector(limit=10, ttl_dns_cache=300)
     async with aiohttp.ClientSession(connector=connector) as session, aiohttp.ClientSession(connector=connector) as session_tg:
         await asyncio.gather(*[
-            process(session, session_tg, url, cache)
+            process(session, session_tg, url)
             for url in REPOS
         ])
 
