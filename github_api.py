@@ -1,7 +1,8 @@
-# github_api.py
 import aiohttp
+import re
+from typing import Optional, Dict, Any
 from logger import log_error
-from config import GITHUB_TOKEN
+from config import GITHUB_TOKEN, REQUEST_TIMEOUT
 
 HEADERS = {
     "Accept": "application/vnd.github+json",
@@ -11,16 +12,16 @@ HEADERS = {
 if GITHUB_TOKEN:
     HEADERS["Authorization"] = f"Bearer {GITHUB_TOKEN}"
 
-async def fetch_release(session, url):
+async def fetch_release(session: aiohttp.ClientSession, url: str) -> Optional[Dict[str, Any]]:
     try:
-        timeout = aiohttp.ClientTimeout(total=30)
+        timeout = aiohttp.ClientTimeout(total=REQUEST_TIMEOUT)
         async with session.get(url, headers=HEADERS, timeout=timeout) as resp:
             if resp.status != 200:
                 log_error(f"GitHub API error {resp.status}: {url}")
                 return None
 
             data = await resp.json()
-            if not data:
+            if not data or not isinstance(data, list):
                 return None
 
             release = next(
@@ -36,3 +37,11 @@ async def fetch_release(session, url):
     except Exception as e:
         log_error(f"Fetch failed: {url} -> {e}")
         return None
+
+async def check_github_api(session: aiohttp.ClientSession) -> bool:
+    try:
+        timeout = aiohttp.ClientTimeout(total=REQUEST_TIMEOUT)
+        async with session.get("https://api.github.com/zen", headers=HEADERS, timeout=timeout) as resp:
+            return resp.status == 200
+    except Exception:
+        return False
