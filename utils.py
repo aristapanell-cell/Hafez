@@ -177,7 +177,7 @@ def format_size(size_bytes):
         return f"{size_bytes // 1024}KB"
     return f"{size_bytes // (1024 * 1024)}MB"
 
-def build_caption(repo_name, tag, system, arch, size_mb, is_large=False):
+def build_caption(repo_name, tag, system, arch, size_str, is_large=False):
     caption = f"""
 ✨ <b>بروزرسانی جدید</b> ✨
 
@@ -187,7 +187,7 @@ def build_caption(repo_name, tag, system, arch, size_mb, is_large=False):
 ├───────────────•
 │ 🖥 سیستم عامل: {system}
 │ 🏗 معماری: <code>{arch}</code>
-│ 💾 حجم: {size_mb}
+│ 💾 حجم: {size_str}
 └───────────────•"""
 
     if is_large:
@@ -200,7 +200,7 @@ def build_caption(repo_name, tag, system, arch, size_mb, is_large=False):
 ├───────────────•
 │ 🖥 سیستم عامل: {system}
 │ 🏗 معماری: <code>{arch}</code>
-│ 💾 حجم: {size_mb}
+│ 💾 حجم: {size_str}
 ├───────────────•
 │ ⚠️ <b>توجه:</b> حجم فایل بیشتر از ۵۰ مگابایت
 │ 📎 دانلود فقط از طریق لینک مستقیم
