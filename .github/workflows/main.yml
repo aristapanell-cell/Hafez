@@ -17,20 +17,22 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v6
+      - name: Checkout repository
+        uses: actions/checkout@v6
 
-      - uses: actions/cache@v4
+      - name: Restore database cache
+        uses: actions/cache@v4
         with:
           path: faals.db
-          key: faals-db-cache-v1-${{ runner.os }}-py3.14
+          key: faals-db-cache-v1-${{ runner.os }}
           restore-keys: |
             faals-db-cache-v1-
             faals-db-cache-
 
-      - uses: actions/setup-python@v6
+      - name: Setup Python
+        uses: actions/setup-python@v6
         with:
           python-version: "3.14"
-          cache: pip
 
       - name: Install dependencies
         run: |
@@ -39,7 +41,8 @@ jobs:
 
       - name: Validate DB
         run: |
-          if [ ! -f faals.db ] || [ ! -s faals.db ] || [ $(stat -c%s faals.db) -lt 1000 ]; then
+          if [ ! -f faals.db ] || [ ! -s faals.db ] || [ "$(stat -c%s faals.db)" -lt 1000 ]; then
+            echo "Invalid or missing database. Removing it..."
             rm -f faals.db
           fi
 
