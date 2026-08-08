@@ -17,9 +17,15 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # =====================================================
+      # Checkout Repository
+      # =====================================================
       - name: Checkout repository
         uses: actions/checkout@v6
 
+      # =====================================================
+      # Restore SQLite Database Cache
+      # =====================================================
       - name: Restore database cache
         uses: actions/cache@v4
         with:
@@ -29,25 +35,122 @@ jobs:
             faals-db-cache-v1-
             faals-db-cache-
 
+      # =====================================================
+      # Check Database Before Validation
+      # =====================================================
+      - name: Check database cache
+        shell: bash
+        run: |
+          echo "========================================"
+          echo "        DATABASE CACHE CHECK"
+          echo "========================================"
+
+          echo "📁 Current directory:"
+          pwd
+
+          echo ""
+          echo "📂 Repository files:"
+          ls -lah
+
+          echo ""
+
+          if [ -f faals.db ]; then
+            DB_SIZE=$(stat -c%s faals.db)
+
+            echo "✅ faals.db found"
+            echo "💾 Database size: ${DB_SIZE} bytes"
+            echo "📍 Database path: $(realpath faals.db)"
+
+            if [ "$DB_SIZE" -ge 1000 ]; then
+              echo "✅ Database size looks valid"
+            else
+              echo "⚠️ Database is smaller than 1000 bytes"
+            fi
+          else
+            echo "❌ faals.db not found"
+            echo "ℹ️ Bot will download/create the database if needed."
+          fi
+
+          echo "========================================"
+
+      # =====================================================
+      # Setup Python
+      # =====================================================
       - name: Setup Python
         uses: actions/setup-python@v6
         with:
           python-version: "3.14"
 
+      # =====================================================
+      # Install Dependencies
+      # =====================================================
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install requests
 
+      # =====================================================
+      # Validate Database
+      # =====================================================
       - name: Validate DB
+        shell: bash
         run: |
-          if [ ! -f faals.db ] || [ ! -s faals.db ] || [ "$(stat -c%s faals.db)" -lt 1000 ]; then
-            echo "Invalid or missing database. Removing it..."
+          echo "========================================"
+          echo "        DATABASE VALIDATION"
+          echo "========================================"
+
+          if [ ! -f faals.db ]; then
+            echo "⚠️ faals.db does not exist."
+            echo "ℹ️ Bot will create/download the database."
+          elif [ ! -s faals.db ]; then
+            echo "⚠️ faals.db is empty."
+            echo "🗑️ Removing invalid database..."
             rm -f faals.db
+          elif [ "$(stat -c%s faals.db)" -lt 1000 ]; then
+            echo "⚠️ faals.db is smaller than 1000 bytes."
+            echo "🗑️ Removing invalid database..."
+            rm -f faals.db
+          else
+            echo "✅ faals.db passed basic validation."
+            echo "💾 Size: $(stat -c%s faals.db) bytes"
           fi
 
+          echo "========================================"
+
+      # =====================================================
+      # Run Bot
+      # =====================================================
       - name: Run bot
         run: python bot.py
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
+
+      # =====================================================
+      # Check Database After Bot
+      # =====================================================
+      - name: Verify database after bot
+        if: always()
+        shell: bash
+        run: |
+          echo "========================================"
+          echo "      DATABASE AFTER BOT EXECUTION"
+          echo "========================================"
+
+          if [ -f faals.db ]; then
+            DB_SIZE=$(stat -c%s faals.db)
+
+            echo "✅ faals.db exists"
+            echo "💾 Size: ${DB_SIZE} bytes"
+            echo "📍 Path: $(realpath faals.db)"
+
+            if [ "$DB_SIZE" -ge 1000 ]; then
+              echo "✅ Database is ready for cache."
+            else
+              echo "⚠️ Database exists but looks too small."
+            fi
+          else
+            echo "❌ faals.db was not created."
+          fi
+
+          echo "========================================"
