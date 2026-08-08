@@ -725,7 +725,7 @@ def build(month, emoji, bit, interp):
 💖 <i>امیدوارم امروزت پر از اتفاق‌های خوب باشه...</i>
 
 ━━━━━━━━━━━━━━━━━━
-📌 <b>@aristapanel</b>
+<blockquote>@aristapanel</blockquote>
 
 #فال_حافظ #فال_امروز #سرگرمی #آریستا
 """
