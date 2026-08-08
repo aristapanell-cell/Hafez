@@ -5,6 +5,7 @@ import requests
 import re
 import time
 from datetime import datetime, timezone, timedelta
+from html import escape
 
 
 # =========================================================
@@ -628,61 +629,27 @@ def save(month, fid, day):
 # POEM EXTRACTION
 # =========================================================
 
-def extract_bit(poem):
+def extract_poem(poem):
     """
-    Pick a random couplet from the poem.
-
-    Supports both \\n and \\r\\n.
+    Return the complete Hafez poem.
     """
-
     if not poem:
         return ""
-
-    # splitlines() هم \n و هم \r\n را پشتیبانی می‌کند.
     lines = [
         line.strip()
         for line in poem.splitlines()
         if line.strip()
     ]
-
     if not lines:
         return ""
-
-    pairs = []
-
-    for i in range(0, len(lines), 2):
-
-        first = lines[i]
-
-        second = (
-            lines[i + 1]
-            if i + 1 < len(lines)
-            else ""
-        )
-
-        pairs.append(
-            (
-                first,
-                second
-            )
-        )
-
-    if not pairs:
-        return ""
-
-    first, second = random.choice(pairs)
-
-    if second:
-        return f"{first}\n{second}"
-
-    return first
+    return "\n".join(lines)
 
 
 # =========================================================
 # MESSAGE DESIGN
 # =========================================================
 
-def build(month, emoji, bit, interp):
+def build(month, emoji, poem_text, interp):
     """
     Build beautiful Telegram message.
     """
@@ -702,6 +669,9 @@ def build(month, emoji, bit, interp):
         f"{date_year}"
     )
 
+    safe_poem = escape(poem_text)
+    safe_interp = escape(interp)
+
     return f"""📖 <b>فال حافظ امروز</b>
 
 ✨ <b>{date_text}</b>
@@ -712,11 +682,11 @@ def build(month, emoji, bit, interp):
 
 🌸🍃🌺🍃🌸🍃🌺
 
-<blockquote>{bit}</blockquote>
+<blockquote expandable>{safe_poem}</blockquote>
 
 💫 <b>تعبیر فال</b>
 
-{interp}
+{safe_interp}
 
 🌺🍃🌸🍃🌺🍃🌸
 
@@ -799,14 +769,14 @@ def enqueue_daily_batch():
             used
         )
 
-        bit = extract_bit(
+        poem_text = extract_poem(
             poem
         )
 
         text = build(
             month,
             MONTHS[month][1],
-            bit,
+            poem_text,
             interp
         )
 
